@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>NFL Super Bowl Draft Picker</title>
+  <!-- Tailwind (CDN) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-slate-950 text-slate-100">
+  <div id="root"></div>
+
+  <!-- React 18 (CDN) -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+
+  <script>
+    // --- 32 current NFL teams (2025 season names) ---
+    const NFL_TEAMS = [
+      "Arizona Cardinals","Atlanta Falcons","Baltimore Ravens","Buffalo Bills",
+      "Carolina Panthers","Chicago Bears","Cincinnati Bengals","Cleveland Browns",
+      "Dallas Cowboys","Denver Broncos","Detroit Lions","Green Bay Packers",
+      "Houston Texans","Indianapolis Colts","Jacksonville Jaguars","Kansas City Chiefs",
+      "Las Vegas Raiders","Los Angeles Chargers","Los Angeles Rams","Miami Dolphins",
+      "Minnesota Vikings","New England Patriots","New Orleans Saints","New York Giants",
+      "New York Jets","Philadelphia Eagles","Pittsburgh Steelers","San Francisco 49ers",
+      "Seattle Seahawks","Tampa Bay Buccaneers","Tennessee Titans","Washington Commanders"
+    ];
+
+    function shuffle(arr){ const a=[...arr]; for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]];} return a; }
+    function toCSV(rows){ return rows.map(r => r.map(cell => `"${String(cell).replace(/"/g,'""')}"`).join(",")).join("\n"); }
+
+    function App(){
+      const React_ = React; const ReactDOM_ = ReactDOM;
+      const {useMemo, useState} = React_;
+
+      const [namesInput, setNamesInput] = useState("");
+      const managers = useMemo(() => {
+        const trimmed = namesInput.trim();
+        if (!trimmed) return Array.from({length: 12}, (_, i) => `Team ${i+1}`);
+        return trimmed.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+      }, [namesInput]);
+
+      const [shuffledTeams, setShuffledTeams] = useState([]);
+      const [assignments, setAssignments] = useState([]);
+      const [started, setStarted] = useState(false);
+
+      const remainingTeams = shuffledTeams.filter(t => !assignments.some(a => a.team === t));
+      const nextIndex = assignments.length;
+      const canPick = started && nextIndex < managers.length && remainingTeams.length > 0;
+
+      function startDraft(){
+        setShuffledTeams(shuffle(NFL_TEAMS));
+        setAssignments([]);
+        setStarted(true);
+      }
+      function pickNext(){
+        if (!canPick) return;
+        const pool = remainingTeams;
+        const randomTeam = pool[Math.floor(Math.random() * pool.length)];
+        const name = managers[nextIndex];
+        setAssignments(prev => [...prev, {name, team: randomTeam}]);
+      }
+      function undo(){ setAssignments(prev => prev.slice(0, -1)); }
+      function resetAll(){ setStarted(false); setAssignments([]); setShuffledTeams([]); }
+      function copyResults(){
+        const text = assignments.map((a,i) => `${i+1}. ${a.name} — ${a.team}`).join("\n");
+        navigator.clipboard.writeText(text);
+        alert("Results copied to clipboard.");
+      }
+      function downloadCSV(){
+        const header = ["Pick #","Manager","Team"];
+        const rows = assignments.map((a,i) => [String(i+1), a.name, a.team]);
+        const csv = toCSV([header, ...rows]);
+        const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url; a.download = "nfl-random-team-draft.csv"; a.click();
+        URL.revokeObjectURL(url);
+      }
+
+      return React_.createElement("div", {className:"px-4 py-8"},
+        React_.createElement("div", {className:"max-w-5xl mx-auto"},
+          React_.createElement("header", {className:"mb-8"},
+            React_.createElement("h1", {className:"text-3xl md:text-4xl font-bold tracking-tight"}, "NFL Super Bowl Draft Picker"),
+            React_.createElement("p", {className:"text-slate-400 mt-2"},
+              "Click to assign a random NFL team to each league entry. If your team wins the Super Bowl, you take the pot.")
+          ),
+          React_.createElement("div", {className:"grid md:grid-cols-2 gap-6"},
+            React_.createElement("div", {className:"bg-slate-900/60 border border-slate-800 rounded-2xl p-5"},
+              React_.createElement("h2", {className:"text-lg font-semibold mb-3"}, "League Entries"),
+              React_.createElement("p", {className:"text-sm text-slate-400 mb-3"},
+                "Optional: paste one manager name per line. Leave empty to use default ",
+                React_.createElement("em", null, "Team 1…Team 12"), "."),
+              React_.createElement("textarea", {
+                className:"w-full h-44 rounded-xl bg-slate-950 border border-slate-800 p-3 outline-none focus:ring-2 focus:ring-indigo-500",
+                placeholder:"Example:\nKenny\nJess\nMark\n…",
+                value:namesInput, onChange:e=>setNamesInput(e.target.value)
+              }),
+              React_.createElement("div", {className:"flex gap-3 mt-4"},
+                React_.createElement("button", {onClick:startDraft, className:"px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 transition font-semibold"}, "Start Draft"),
+                React_.createElement("button", {onClick:resetAll, className:"px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 transition"}, "Reset")
+              ),
+              React_.createElement("p", {className:"text-xs text-slate-500 mt-3"},
+                "Entries detected: ",
+                React_.createElement("span", {className:"font-medium text-slate-300"}, managers.length)
+              )
+            ),
+            React_.createElement("div", {className:"bg-slate-900/60 border border-slate-800 rounded-2xl p-5"},
+              React_.createElement("h2", {className:"text-lg font-semibold mb-3"}, "Live Draw"),
+              React_.createElement("p", {className:"text-sm text-slate-400"}, "Click the button to give the next manager a random team."),
+              React_.createElement("button", {
+                  onClick:pickNext, disabled:!canPick,
+                  className:`w-full text-center mt-3 px-4 py-4 rounded-2xl text-lg font-bold transition ${canPick ? "bg-emerald-600 hover:bg-emerald-500" : "bg-slate-800 text-slate-500 cursor-not-allowed"}`
+                },
+                canPick ? `Pick Team for ${managers[nextIndex]}` : (started ? "All entries assigned or no teams left" : "Start the draft first")
+              ),
+              React_.createElement("div", {className:"flex gap-3 mt-4"},
+                React_.createElement("button", {onClick:undo, disabled:!started || !assignments.length, className:`px-4 py-2 rounded-xl transition ${assignments.length ? "bg-slate-800 hover:bg-slate-700" : "bg-slate-900 text-slate-500 cursor-not-allowed"}`}, "Undo Last"),
+                React_.createElement("button", {onClick:copyResults, disabled:!assignments.length, className:`px-4 py-2 rounded-xl transition ${assignments.length ? "bg-slate-800 hover:bg-slate-700" : "bg-slate-900 text-slate-500 cursor-not-allowed"}`}, "Copy Results"),
+                React_.createElement("button", {onClick:downloadCSV, disabled:!assignments.length, className:`px-4 py-2 rounded-xl transition ${assignments.length ? "bg-slate-800 hover:bg-slate-700" : "bg-slate-900 text-slate-500 cursor-not-allowed"}`}, "Download CSV")
+              ),
+              React_.createElement("div", {className:"mt-5"},
+                React_.createElement("h3", {className:"font-semibold mb-2"}, "Assignments"),
+                assignments.length === 0
+                  ? React_.createElement("p", {className:"text-sm text-slate-500"}, "No picks yet.")
+                  : React_.createElement("div", {className:"overflow-x-auto rounded-xl border border-slate-800"},
+                      React_.createElement("table", {className:"min-w-full text-sm"},
+                        React_.createElement("thead", {className:"bg-slate-900/50"},
+                          React_.createElement("tr", null,
+                            React_.createElement("th", {className:"text-left p-3 font-semibold"}, "#"),
+                            React_.createElement("th", {className:"text-left p-3 font-semibold"}, "Manager"),
+                            React_.createElement("th", {className:"text-left p-3 font-semibold"}, "Team")
+                          )
+                        ),
+                        React_.createElement("tbody", null,
+                          assignments.map((a,i) =>
+                            React_.createElement("tr", {key:i, className:"odd:bg-slate-900/30"},
+                              React_.createElement("td", {className:"p-3 w-14"}, i+1),
+                              React_.createElement("td", {className:"p-3"}, a.name),
+                              React_.createElement("td", {className:"p-3 font-medium"}, a.team)
+                            )
+                          )
+                        )
+                      )
+                    )
+              )
+            )
+          ),
+          React_.createElement("div", {className:"mt-8 bg-slate-900/60 border border-slate-800 rounded-2xl p-5"},
+            React_.createElement("div", {className:"flex items-center justify-between"},
+              React_.createElement("h2", {className:"text-lg font-semibold"}, "Remaining Teams"),
+              React_.createElement("span", {className:"text-sm text-slate-400"}, `${remainingTeams.length} of ${NFL_TEAMS.length}`)
+            ),
+            !started
+              ? React_.createElement("p", {className:"text-sm text-slate-500 mt-2"}, "Start the draft to see the pool.")
+              : (remainingTeams.length === 0
+                  ? React_.createElement("p", {className:"text-sm text-slate-400 mt-2"}, "All teams assigned for this draft.")
+                  : React_.createElement("ul", {className:"mt-3 grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2"},
+                      remainingTeams.map(t => React_.createElement("li", {key:t, className:"px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-sm"}, t))
+                    )
+                )
+          ),
+          React_.createElement("p", {className:"text-xs text-slate-500 mt-6"},
+            "Fair draw: every pick selects from the current remaining pool (no duplicates). Initialized with a Fisher–Yates shuffle.")
+        )
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+    root.render(React.createElement(App));
+  </script>
+</body>
+</html>
